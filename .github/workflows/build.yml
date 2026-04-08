@@ -10,7 +10,6 @@ on:
 
 env:
   GO_VERSION: '1.21'
-  FYNE_VERSION: '2.7.3'
 
 jobs:
   build-windows:
@@ -37,20 +36,6 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-go-${{ env.GO_VERSION }}-
 
-    - name: Cache Fyne Dependencies
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~\AppData\Local\Temp\fyne
-        key: ${{ runner.os }}-fyne-${{ env.FYNE_VERSION }}
-        restore-keys: |
-          ${{ runner.os }}-fyne-
-
-    - name: Install Fyne Dependencies
-      run: |
-        choco install mingw -y
-        choco install pkgconfiglite -y
-
     - name: Download Go Modules
       run: |
         go mod download
@@ -74,7 +59,7 @@ jobs:
         $version = "${{ steps.get_version.outputs.VERSION }}"
         $buildTime = Get-Date -Format "yyyy-MM-dd_HH:mm:ss"
         
-        go build -ldflags="-s -w -H windowsgui -X main.Version=$version -X main.BuildTime=$buildTime" -o build/svnsearch.exe ./cmd/svnsearch
+        go build -ldflags="-s -w -X main.Version=$version -X main.BuildTime=$buildTime" -o build/svnsearch.exe ./cmd/svnsearch
         
         Write-Host "Build completed successfully"
 
@@ -97,13 +82,13 @@ jobs:
         Copy-Item "configs/config.json" "dist/$packageName/configs/"
         
         # Copy README
-        Copy-Item "README.md" "dist/$packageName/"
+        Copy-Item "README.md" "dist/$packageName/" -ErrorAction SilentlyContinue
         
         # Create start script
         $startBat = @"
         @echo off
         cd /d "%~dp0"
-        start "" svnsearch.exe
+        svnsearch.exe
         "@
         $startBat | Out-File -FilePath "dist/$packageName/start.bat" -Encoding ASCII
         
@@ -113,8 +98,8 @@ jobs:
         ====================
         
         使用说明：
-        1. 双击 start.bat 或 svnsearch.exe 启动程序
-        2. 添加SVN仓库配置
+        1. 双击 start.bat 启动程序
+        2. 按照数字菜单进行操作
         3. 扫描仓库生成EFU文件
         4. 在Everything中加载EFU文件
         
@@ -180,11 +165,12 @@ jobs:
           - 无需安装，解压即用
           - 单文件可执行程序
           - 配置文件和数据文件独立存储
+          - 命令行数字菜单操作
           
           ### 下载说明
           - 下载 `svnsearch-portable-windows-v${{ steps.get_version.outputs.VERSION }}.zip`
           - 解压到任意目录
-          - 双击 `start.bat` 或 `svnsearch.exe` 启动
+          - 双击 `start.bat` 启动
           
           ### 系统要求
           - Windows 7 或更高版本

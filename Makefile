@@ -5,10 +5,10 @@ VERSION=1.0.0
 BUILD_DIR=build
 
 build:
-	GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -X main.Version=$(VERSION) -X main.BuildTime=$(shell date +%Y-%m-%d_%H:%M:%S)" -o $(BUILD_DIR)/$(APP_NAME).exe ./cmd/svnsearch
-
-build-linux:
 	go build -ldflags="-s -w -X main.Version=$(VERSION) -X main.BuildTime=$(shell date +%Y-%m-%d_%H:%M:%S)" -o $(BUILD_DIR)/$(APP_NAME) ./cmd/svnsearch
+
+build-windows:
+	GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -X main.Version=$(VERSION) -X main.BuildTime=$(shell date +%Y-%m-%d_%H:%M:%S)" -o $(BUILD_DIR)/$(APP_NAME).exe ./cmd/svnsearch
 
 clean:
 	rm -rf $(BUILD_DIR)
