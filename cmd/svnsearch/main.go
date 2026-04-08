@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
@@ -71,7 +72,9 @@ func printMenu() {
 func getUserInput(prompt string) string {
 	fmt.Print(prompt)
 	var input string
-	fmt.Scanln(&input)
+	// 使用 bufio 读取整行输入，支持包含空格的输入
+	reader := bufio.NewReader(os.Stdin)
+	input, _ = reader.ReadString('\n')
 	return strings.TrimSpace(input)
 }
 

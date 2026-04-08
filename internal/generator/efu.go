@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"svnsearch/internal/scanner"
@@ -54,7 +55,13 @@ func (g *EFUGenerator) writeHeader(writer *csv.Writer) error {
 }
 
 func (g *EFUGenerator) writeFileEntry(writer *csv.Writer, file scanner.FileInfo, repoName, repoURL string) error {
-	fullPath := fmt.Sprintf("SVN://%s/%s/%s", repoName, repoURL, file.Filename)
+	cleanURL := repoURL
+	cleanURL = strings.TrimPrefix(cleanURL, "svn://")
+	cleanURL = strings.TrimPrefix(cleanURL, "http://")
+	cleanURL = strings.TrimPrefix(cleanURL, "https://")
+	cleanURL = strings.ReplaceAll(cleanURL, "/", "\\")
+	
+	fullPath := fmt.Sprintf("SVN:\\%s\\%s\\%s", repoName, cleanURL, strings.ReplaceAll(file.Filename, "/", "\\"))
 
 	record := []string{
 		fullPath,
