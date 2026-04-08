@@ -1,0 +1,10 @@
+{
+  "repositories": [],
+  "settings": {
+    "auto_scan_interval": 15,
+    "efu_output_dir": "./data/efu",
+    "monitor_changes": true,
+    "log_level": "INFO",
+    "max_workers": 50
+  }
+}

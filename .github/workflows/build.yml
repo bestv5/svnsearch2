@@ -1,0 +1,200 @@
+name: Build Windows Portable
+
+on:
+  push:
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  GO_VERSION: '1.21'
+  FYNE_VERSION: '2.7.3'
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    name: Build Windows Portable
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        cache: true
+
+    - name: Cache Go Modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/go/pkg/mod
+          %LocalAppData%\go-build
+        key: ${{ runner.os }}-go-${{ env.GO_VERSION }}-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-${{ env.GO_VERSION }}-
+
+    - name: Cache Fyne Dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~\AppData\Local\Temp\fyne
+        key: ${{ runner.os }}-fyne-${{ env.FYNE_VERSION }}
+        restore-keys: |
+          ${{ runner.os }}-fyne-
+
+    - name: Install Fyne Dependencies
+      run: |
+        choco install mingw -y
+        choco install pkgconfiglite -y
+
+    - name: Download Go Modules
+      run: |
+        go mod download
+        go mod tidy
+
+    - name: Get Version
+      id: get_version
+      shell: pwsh
+      run: |
+        if ($env:GITHUB_REF -match 'refs/tags/v(.+)') {
+          $version = $matches[1]
+        } else {
+          $version = "1.0.0-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+        }
+        echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+        Write-Host "Build version: $version"
+
+    - name: Build Windows Executable
+      shell: pwsh
+      run: |
+        $version = "${{ steps.get_version.outputs.VERSION }}"
+        $buildTime = Get-Date -Format "yyyy-MM-dd_HH:mm:ss"
+        
+        go build -ldflags="-s -w -H windowsgui -X main.Version=$version -X main.BuildTime=$buildTime" -o build/svnsearch.exe ./cmd/svnsearch
+        
+        Write-Host "Build completed successfully"
+
+    - name: Create Portable Package
+      shell: pwsh
+      run: |
+        $version = "${{ steps.get_version.outputs.VERSION }}"
+        $packageName = "svnsearch-portable-windows-v$version"
+        
+        # Create portable directory structure
+        New-Item -ItemType Directory -Force -Path "dist/$packageName"
+        New-Item -ItemType Directory -Force -Path "dist/$packageName/configs"
+        New-Item -ItemType Directory -Force -Path "dist/$packageName/data/efu"
+        New-Item -ItemType Directory -Force -Path "dist/$packageName/logs"
+        
+        # Copy executable
+        Copy-Item "build/svnsearch.exe" "dist/$packageName/"
+        
+        # Copy default config
+        Copy-Item "configs/config.json" "dist/$packageName/configs/"
+        
+        # Copy README
+        Copy-Item "README.md" "dist/$packageName/"
+        
+        # Create start script
+        $startBat = @"
+        @echo off
+        cd /d "%~dp0"
+        start "" svnsearch.exe
+        "@
+        $startBat | Out-File -FilePath "dist/$packageName/start.bat" -Encoding ASCII
+        
+        # Create usage instructions
+        $readme = @"
+        SVN索引管理器 - 便携版
+        ====================
+        
+        使用说明：
+        1. 双击 start.bat 或 svnsearch.exe 启动程序
+        2. 添加SVN仓库配置
+        3. 扫描仓库生成EFU文件
+        4. 在Everything中加载EFU文件
+        
+        目录说明：
+        - configs/     : 配置文件目录
+        - data/efu/    : EFU文件存储目录
+        - logs/        : 日志文件目录
+        
+        版本: v$version
+        构建时间: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+        "@
+        $readme | Out-File -FilePath "dist/$packageName/使用说明.txt" -Encoding UTF8
+        
+        Write-Host "Portable package created: $packageName"
+
+    - name: Create ZIP Archive
+      shell: pwsh
+      run: |
+        $version = "${{ steps.get_version.outputs.VERSION }}"
+        $packageName = "svnsearch-portable-windows-v$version"
+        
+        Compress-Archive -Path "dist/$packageName" -DestinationPath "dist/$packageName.zip"
+        
+        Write-Host "ZIP archive created: $packageName.zip"
+
+    - name: Calculate Checksum
+      id: checksum
+      shell: pwsh
+      run: |
+        $version = "${{ steps.get_version.outputs.VERSION }}"
+        $zipFile = "dist/svnsearch-portable-windows-v$version.zip"
+        
+        $hash = Get-FileHash $zipFile -Algorithm SHA256
+        $checksum = $hash.Hash
+        
+        echo "CHECKSUM=$checksum" >> $env:GITHUB_OUTPUT
+        
+        # Create checksum file
+        "$checksum  svnsearch-portable-windows-v$version.zip" | Out-File -FilePath "dist/checksum.sha256" -Encoding ASCII
+        
+        Write-Host "Checksum: $checksum"
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: svnsearch-portable-windows
+        path: |
+          dist/*.zip
+          dist/checksum.sha256
+        retention-days: 30
+
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/v')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          dist/*.zip
+          dist/checksum.sha256
+        body: |
+          ## SVN索引管理器 v${{ steps.get_version.outputs.VERSION }}
+          
+          ### 便携版特性
+          - 无需安装，解压即用
+          - 单文件可执行程序
+          - 配置文件和数据文件独立存储
+          
+          ### 下载说明
+          - 下载 `svnsearch-portable-windows-v${{ steps.get_version.outputs.VERSION }}.zip`
+          - 解压到任意目录
+          - 双击 `start.bat` 或 `svnsearch.exe` 启动
+          
+          ### 系统要求
+          - Windows 7 或更高版本
+          - SVN命令行工具
+          - Everything搜索引擎
+          
+          ### 文件校验
+          SHA256: `${{ steps.checksum.outputs.CHECKSUM }}`
+          
+          ### 更新日志
+          请查看 [README.md](https://github.com/${{ github.repository }}/blob/main/README.md)
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
