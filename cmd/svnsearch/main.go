@@ -10,12 +10,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"svnsearch/internal/config"
 	"svnsearch/internal/generator"
 	"svnsearch/internal/scanner"
 	"svnsearch/pkg/logger"
-	"svnsearch/pkg/utils"
 )
+
 
 var (
 	Version   = "1.0.0"
@@ -42,8 +43,10 @@ func main() {
 		case "6":
 			doEnableMenu(configPath, false)
 		case "7":
-			fmt.Printf("svnsearch v%s (构建时间: %s)\n", Version, BuildTime)
+			doModify(configPath)
 		case "8":
+			fmt.Printf("svnsearch v%s (构建时间: %s)\n", Version, BuildTime)
+		case "9":
 			fmt.Println("退出程序...")
 			return
 		default:
@@ -64,8 +67,9 @@ func printMenu() {
 	fmt.Println("4. 删除仓库")
 	fmt.Println("5. 启用仓库")
 	fmt.Println("6. 禁用仓库")
-	fmt.Println("7. 显示版本")
-	fmt.Println("8. 退出")
+	fmt.Println("7. 修改仓库")
+	fmt.Println("8. 显示版本")
+	fmt.Println("9. 退出")
 	fmt.Printf("=====================================\n")
 }
 
@@ -139,7 +143,7 @@ func doAdd(configPath string) {
 
 	scanPaths := parsePaths(pathsInput)
 	repo := config.Repository{
-		ID:        utils.GenerateID(),
+		ID:        uuid.New().String(),
 		Name:      name,
 		URL:       url,
 		Username:  user,
@@ -340,6 +344,72 @@ func doEnableMenu(configPath string, enabled bool) {
 	repo.Enabled = enabled
 	saveConfig(configPath, cfg)
 	fmt.Printf("✓ 已%s仓库: %s\n", action, repo.Name)
+}
+
+func doModify(configPath string) {
+	cfg := loadConfig(configPath)
+
+	if len(cfg.Repositories) == 0 {
+		fmt.Println("没有配置任何仓库")
+		return
+	}
+
+	fmt.Println("=====================================")
+	fmt.Println("修改仓库")
+	fmt.Println("=====================================")
+
+	for i, r := range cfg.Repositories {
+		fmt.Printf("%d. %s\n", i+1, r.Name)
+	}
+
+	choice := getUserInput("请选择要修改的仓库编号: ")
+	index, err := strconv.Atoi(choice)
+	if err != nil || index < 1 || index > len(cfg.Repositories) {
+		fmt.Println("无效的选择")
+		return
+	}
+
+	repo := cfg.Repositories[index-1]
+	fmt.Printf("当前信息:\n")
+	fmt.Printf("  仓库名称: %s\n", repo.Name)
+	fmt.Printf("  SVN地址: %s\n", repo.URL)
+	fmt.Printf("  用户名: %s\n", repo.Username)
+	fmt.Printf("  密码: %s\n", maskPassword(repo.Password))
+	fmt.Printf("  扫描路径: %v\n", repo.ScanPaths)
+
+	fmt.Println("\n请输入新的信息（留空保持不变）:")
+	name := getUserInput("仓库名称: ")
+	url := getUserInput("SVN地址: ")
+	user := getUserInput("用户名: ")
+	pass := getUserInput("密码: ")
+	pathsInput := getUserInput("扫描路径 (逗号分隔): ")
+
+	if name != "" {
+		repo.Name = name
+	}
+	if url != "" {
+		repo.URL = url
+	}
+	if user != "" {
+		repo.Username = user
+	}
+	if pass != "" {
+		repo.Password = pass
+	}
+	if pathsInput != "" {
+		repo.ScanPaths = parsePaths(pathsInput)
+	}
+
+	cfg.Repositories[index-1] = repo
+	saveConfig(configPath, cfg)
+	fmt.Printf("✓ 已修改仓库: %s\n", repo.Name)
+}
+
+func maskPassword(password string) string {
+	if password == "" {
+		return ""
+	}
+	return "********"
 }
 
 func parsePaths(s string) []string {

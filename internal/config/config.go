@@ -7,8 +7,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"svnsearch/pkg/utils"
+	"github.com/google/uuid"
 )
+
+
 
 type Config struct {
 	Repositories []Repository `json:"repositories"`
@@ -73,16 +75,7 @@ func LoadConfig(path string) (*Config, error) {
 		config.Settings.LogLevel = DefaultSettings.LogLevel
 	}
 
-	for i := range config.Repositories {
-		if config.Repositories[i].Password != "" {
-			decrypted, err := utils.DecryptPassword(config.Repositories[i].Password)
-			if err != nil {
-				return nil, fmt.Errorf("解密密码失败: %w", err)
-			}
-			config.Repositories[i].Password = decrypted
-		}
-	}
-
+	// 直接返回，不进行密码解密
 	return &config, nil
 }
 
@@ -91,15 +84,7 @@ func SaveConfig(path string, config *Config) error {
 	configCopy.Repositories = make([]Repository, len(config.Repositories))
 	copy(configCopy.Repositories, config.Repositories)
 
-	for i := range configCopy.Repositories {
-		if configCopy.Repositories[i].Password != "" {
-			encrypted, err := utils.EncryptPassword(configCopy.Repositories[i].Password)
-			if err != nil {
-				return fmt.Errorf("加密密码失败: %w", err)
-			}
-			configCopy.Repositories[i].Password = encrypted
-		}
-	}
+	// 直接保存，不进行密码加密
 
 	data, err := json.MarshalIndent(configCopy, "", "  ")
 	if err != nil {
@@ -119,7 +104,7 @@ func SaveConfig(path string, config *Config) error {
 }
 
 func (c *Config) AddRepository(repo Repository) {
-	repo.ID = utils.GenerateID()
+	repo.ID = uuid.New().String()
 	c.Repositories = append(c.Repositories, repo)
 }
 
